@@ -1,0 +1,34 @@
+int a;
+
+{
+  int b;
+
+  print "Hello, world!\n";
+  
+  a = 1;
+  b = 2;
+
+  print "a + b*3 = (7) ";
+  write a+b*3;
+
+  print "a - b*3 = (-5) ";
+  write a-b*3;
+
+  if (a < 2) { a = 2; }
+
+  print "a = (2) "; write a;
+
+  if (a < 2) { a = 3; }
+  else { a = 0; }
+
+  print "a = (0) "; write a;
+
+  print "should see number 0,1,2\n";
+
+  while (a <= b) {
+    write a;
+    a = a+1;
+  }
+
+  print "That's it, folks!\n";
+}
