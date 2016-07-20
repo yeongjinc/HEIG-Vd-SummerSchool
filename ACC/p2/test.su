@@ -1,0 +1,44 @@
+int a,b,c;
+
+int minus()
+{
+  int a,b;
+
+  return a - b;
+}
+
+int test(int p1, p2)
+{
+  return p1 + p2;
+}
+
+{
+  a = 77;
+
+  int a;
+
+  a = 0;
+
+  if (a == 0) {} else {}
+
+  while (a < 0) {
+    int a;
+    a = 9;
+  }
+
+  a = 1;
+
+  if (a < 2) {
+    b = 3;
+  } else {
+    b = 5;
+  }
+
+  print "Hello:\"\n\t";
+  read a;
+  int b;
+  read b;
+
+  a = 1 + test(a+b, b+c);
+
+}

@@ -18,20 +18,22 @@
 /// @{
 /// @name memories
 Stack *global;            ///< storage for global variables
-Stack *current;           ///< the current stack
+Stack *stack;             ///< the current stack
 Stack *operands;          ///< the operand stack
 /// @}
 
 /// @{
 /// @name execution context
 CodeBlock *code;          ///< currently executing codeblock
-int pc;                   ///< program counter (offset into code)
+int pc;                   ///< program counter (offset into code
 /// @}
 
 
 /// @{
 /// @name code management
 
+char *fn_pfx = NULL;
+CodeBlock *entry = NULL;
 
 /// @}
 
@@ -43,6 +45,25 @@ int trace_mem = 0;        ///< print memory contents for each step
 int trace_stack = 0;      ///< print operand stack for each step
 
 /// @}
+
+
+CodeBlock* load(const char *label, const char *fn_prefix)
+{
+  // check if code is already loaded
+  CodeBlock *cb = entry;
+  while ((cb != NULL) && (strcmp(label, cb->label) != 0)) cb = cb->next;
+
+  // if not load the code and insert it into the list of codeblocks
+  if (cb == NULL) {
+    cb = load_codeblock(label, fn_prefix);
+    if (cb != NULL) {
+      cb->next = entry;
+      entry = cb;
+    }
+  }
+
+  return cb;
+}
 
 /// @brief execution loop. The memories (global, current), the operand
 ///        stack (operands), and the execution context (code, pc) must
@@ -61,6 +82,7 @@ void execute(void)
 
     if (trace_ops) {
       printf("---   operation   ---\n");
+      dump_operation(op);
     }
     if (trace_stack) {
       printf("--- operand stack ---\n");
@@ -70,7 +92,7 @@ void execute(void)
       printf("--- global memory ---\n");
       dump_stack(global);
       printf("--- current stack ---\n");
-      dump_stack(current);
+      dump_stack(stack);
     }
     if (trace_ops || trace_stack || trace_mem) {
       printf("---------------------\n");
@@ -151,7 +173,7 @@ void execute(void)
 
           // bit 31: 1 => global variable
           //         0 => variable on stack
-          Stack *mem = current;
+          Stack *mem = stack;
           if (offset & (1 << 31)) {
             mem = global;
             offset &= 0x7fffffff;
@@ -170,6 +192,34 @@ void execute(void)
             v = pop_value(operands);
             store_value(mem, offset, v);
           }
+        }
+        break;
+
+      case opCall:
+        {
+          // create a new execution stack
+          stack = init_stack(stack);
+
+          // save return information
+          stack->retcb = code;
+          stack->retpc = next_pc;
+
+          // load code and set pc to first instruction
+          code = load((char*)op->operand, fn_pfx);
+          next_pc = 0;
+        }
+        break;
+
+      case opReturn:
+        { 
+          // set execution context to next instruction in caller
+          code = stack->retcb;
+          next_pc = stack->retpc;
+
+          // activate caller stack and discard stack of callee
+          Stack *s = stack;
+          stack = stack->uplink;
+          delete_stack(s);
         }
         break;
 
@@ -210,7 +260,7 @@ void execute(void)
       case opRead:
         { //
           // read v from stdin
-          // push v
+          // mem[op] = v
           //
           int v, r;
           r = scanf("%d", &v);
@@ -225,7 +275,17 @@ void execute(void)
             return;
           }
 
-          push_value(operands, v);
+          int offset = (int)(long int)op->operand;
+
+          // bit 31: 1 => global variable
+          //         0 => variable on stack
+          Stack *mem = stack;
+          if (offset & (1 << 31)) {
+            mem = global;
+            offset &= 0x7fffffff;
+          }
+
+          store_value(mem, offset, v);
         }
         break;
 
@@ -288,21 +348,26 @@ int main(int argc, char *argv[])
     else return EXIT_FAILURE;
   }
 
+  global = init_stack(NULL);
+  delete_stack(global);
+
+  global = init_stack(NULL);
+  push_value(global, 7);
+  delete_stack(global);
+
+  global = init_stack(NULL);
+  store_value(global, 4, 7);
+  delete_stack(global);
+
   // prepare filename prefix (cut off extension)
-  char *fn_pfx = strdup(argv[1]);
+  fn_pfx = strdup(fn);
   char *dot = strrchr(fn_pfx, '.');
   if (dot != NULL) *dot = '\0';
 
-  FILE *fmain = fopen(argv[1], "rb");
-  if (fmain == NULL) {
-    printf("Cannot open input file '%s'.\n", argv[1]);
-    return EXIT_FAILURE;
-  }
-
   // load main code
-  code = load_codeblock("", fn_pfx);
-  if (code != NULL) {
-    dump_codeblock(code);
+  entry = load("", fn_pfx);
+  if (entry != NULL) {
+    dump_codeblock(entry);
 
     printf("\n\nExecution begins\n\n");
 
@@ -310,14 +375,29 @@ int main(int argc, char *argv[])
     operands = init_stack(NULL);
 
     global = init_stack(NULL);
-    current = init_stack(global);
+    stack = init_stack(global);
 
     // start executing at pc=0
+    code = entry;
     pc = 0;
 
     execute();
+
+    // cleanup
+    delete_stack(operands);
+    delete_stack(global);
+    delete_stack(stack);
+
+    CodeBlock *cb;
+    do {
+      cb = entry;
+      entry = entry->next;
+      delete_codeblock(cb);
+    } while (entry != NULL);
+  } else {
+    printf("Error: cannot load code.\n");
+    return EXIT_FAILURE;
   }
 
-  // cleanup
-  fclose(fmain);
+  return EXIT_SUCCESS;
 }

@@ -1,0 +1,57 @@
+int a;
+
+void foo(int v)
+{
+  a = v;
+}
+
+int fib(int n)
+{
+  if (n <= 1) { return 1; }
+  else { return fib(n-1) + fib(n-2); }
+}
+
+int noreturn()
+{
+}
+
+void p(int a,b)
+{
+}
+
+{
+  int i, n;
+
+  print "a = (0) "; write a;
+
+
+  i = 0;
+  while (i < 5) {
+    print "Calling 'foo(7)'...\n";
+    foo(7);
+    i = i+1;
+  }
+
+  print "a = (7) "; write a;
+
+  print "compute Fibonacci number up to "; read n;
+
+  i = 0;
+  while (i < n) {
+    print "fib "; write i;
+    print "  = "; write fib(i);
+    i = i+1;
+  }
+
+  i = noreturn();
+  print "i = (noreturn) "; write i;
+
+  p(i, n);
+  p(i, n, 1);
+  p(i);
+
+  noreturn();
+
+  i = i + noreturn();
+  i = i + p();
+}

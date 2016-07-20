@@ -80,7 +80,7 @@ program     :                                 { stack = init_stack(NULL); symtab
             ;
 
 decll       : %empty
-            | decll vardecl ';'               { free_idlist($vardecl); }
+            | decll vardecl ';'               { delete_idlist($vardecl); }
 			| decll fundecl
             ;
 

@@ -46,7 +46,27 @@ typedef struct __idlist {
 
 /// @brief free an IDlist. The list owns the strings, i.e., frees them here.
 /// @param l list to free
-void free_idlist(IDlist *l);
+void delete_idlist(IDlist *l);
+
+
+/// @brief list of defined functions
+typedef struct __funclist {
+  char *id;                     ///< function identifier
+  EType rettype;                ///< return type
+  int   narg;                   ///< number of arguments
+  struct __funclist *next;      ///< link to next element
+} Funclist;
+
+/// @brief find a defined function by its identifier
+/// @param fl function list
+/// @param id ID to search for
+/// @retval Funclist* function that matches @a id
+/// @retval NULL if no function matches @a id
+Funclist* find_func(Funclist *fl, const char *id);
+
+/// @brief free a Funclist. The list owns the strings, i.e., frees them here.
+/// @param l list to free
+void delete_funclist(Funclist *l);
 
 
 //------------------------------------------------------------------------------
@@ -56,7 +76,10 @@ void free_idlist(IDlist *l);
 // below). During compile-time, the global and local variables are pushed onto
 // the respective stacks to obtain memory addresses (push_value returns the
 // stack offset). At runtime, those offsets are then used to directly load/store
-// values from memory locations.
+// values from memory locations. The stack also reserves space for function
+// return information to be used at runtime.
+
+struct __codeblock;
 
 /// @brief operand/variable stack
 typedef struct __stack {               
@@ -66,6 +89,9 @@ typedef struct __stack {
 
   struct __stack *uplink;       ///< pointer to upper stack (static at compile
                                 ///< time, dynamic at runtime)
+  
+  struct __codeblock *retcb;    ///< at runtime: return to codeblock
+  int retpc;                    ///< at runtime: return to pc
 } Stack;
 
 /// @brief initalize a new stack
@@ -171,6 +197,8 @@ Symbol* insert_symbol(Symtab *st, const char *id, EType type);
 
 /// @brief suPL VM opcodes
 typedef enum __opcode {         ///< syntax operands semantics
+                                //                   (p1 = 1st popped value,
+                                //                    p2 = 2nd popped value)
   opHalt = 0,                   ///< opHalt    0     stop program 
 
   opAdd,                        ///< opAdd     0     push p2 + p1
@@ -186,7 +214,7 @@ typedef enum __opcode {         ///< syntax operands semantics
   opLoad,                       ///< opLoad    1     push mem[op] 
   opStore,                      ///< opStore   1     mem[op] = pop
 
-  opCall,                       ///< opCall    1     goto code[op]; save retadr
+  opCall,                       ///< opCall    1     PC = op; save retadr
   opReturn,                     ///< opReturn  0     return to caller
 
   opJump,                       ///< opJump    1     goto code[op]
@@ -234,6 +262,8 @@ typedef struct __codeblock {
   int elem;                     ///< max. number of elements (size of code)
 
   int stacksize;                ///< size of runtime stack (== number of locals)
+
+  struct __codeblock *next;     ///< link to next codeblock
 } CodeBlock;
 
 /// @brief initalize a new codeblock
@@ -267,6 +297,10 @@ void pending_backpatch(CodeBlock *cb, Oplist *bpl);
 /// @param op operation to add
 /// @retval Oplist* new list including @a op
 Oplist* add_backpatch(Oplist *list, Operation *op);
+
+/// @brief delete a backpatch record
+/// @param bpr backpatch record
+void delete_backpatchlist(BPrecord *bpr);
 
 /// @brief print codeblock in human-readable form to stdout
 /// @param cb codeblock to print

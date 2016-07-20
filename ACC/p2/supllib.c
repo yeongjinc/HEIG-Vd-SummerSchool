@@ -24,9 +24,31 @@
 // various lists
 //
 
-void free_idlist(IDlist *l)
+void delete_idlist(IDlist *l)
 {
   IDlist *p;
+  while ((p = l) != NULL) {
+    l = l->next;
+    free(p);
+  }
+}
+
+Funclist* find_func(Funclist *fl, const char *id)
+{
+  Funclist *f = fl;
+  printf("find_func: searching for '%s'...\n", id);
+  while ((f != NULL) && (strcmp(id, f->id) != 0)) {
+    printf("  '%s': nope\n", f->id);
+    f = f->next;
+  }
+  if (f != NULL) printf("  found: '%s'\n", f->id);
+  else printf("  not found.\n");
+  return f;
+}
+
+void delete_funclist(Funclist *l)
+{
+  Funclist *p;
   while ((p = l) != NULL) {
     l = l->next;
     free(p);
@@ -438,6 +460,15 @@ Oplist* add_backpatch(Oplist *list, Operation *op)
   l->next = list;
 
   return l;
+}
+
+void delete_backpatchlist(BPrecord *bpr)
+{
+  Oplist *l, *n;
+  l = bpr->ttrue;  while (l) { n = l->next; free(l); l = n; }
+  l = bpr->tfalse; while (l) { n = l->next; free(l); l = n; }
+  l = bpr->end;    while (l) { n = l->next; free(l); l = n; }
+  free(bpr);
 }
 
 char opc_str[opMax][12] = {
