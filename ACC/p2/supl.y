@@ -58,6 +58,7 @@ extern char *yytext;
 %left '+' '-'
 %left '*' '/'
 %right '='
+//TODO conditional operator
 
 %type<n>    NUMBER number
 %type<str>  ident IDENT string STRING
@@ -134,10 +135,10 @@ stmt 		: vardecl ';'
 			| print
 			;
 
-assign 		: ident '=' expression
+assign 		: ident '=' expression ';'
 		 	;
 
-if 			: IF '(' condition ')' stmtblock
+if 			: IF '(' condition ')' stmtblock 		{ printf("IF\n"); }
 	  		| IF '(' condition ')' stmtblock ELSE stmtblock
 			;
 
@@ -169,20 +170,20 @@ expression 	: number 						{ add_op(cb, opPush, $number); }
 			| expression '/' expression 	{ add_op(cb, opDiv, NULL); }
 			| expression '%' expression 	{ add_op(cb, opMod, NULL); }
 			| expression '^' expression 	{ add_op(cb, opPow, NULL); }
-			| '(' expression ')' 			{ }
+			| '(' expression ')' 			{ /* do nothing */ }
 			| call
 
-condition 	: expression "==" expression
-		   	| expression "<=" expression
-			| expression "<" expression
-			| expression ">=" expression //TODO
-			| expression ">" expression //TODO
+condition 	: expression '=' '=' expression { printf("Condition ==\n"); }
+		   	| expression '<' '=' expression
+			| expression '<' expression
+			| expression '>' '=' expression //TODO
+			| expression '>' expression //TODO
 			;
 
-number 		: NUMBER
+number 		: NUMBER 						{ }
 		 	;
 
-ident       : IDENT
+ident       : IDENT 						{ }
             ;
 
 string 		: STRING 						{ }

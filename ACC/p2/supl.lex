@@ -49,6 +49,12 @@ print 					  { return(PRINT); }
 									if(yytext[i] == '\\' && yytext[i+1] == 'n') {
 										buf[j++] = '\n';
 										i++;
+									} else if(yytext[i] == '\\' && yytext[i+1] == 't') {
+										buf[j++] = '\t';
+										i++;
+									} else if(yytext[i] == '\\' && yytext[i+1] == '\"') {
+										buf[j++] = '\"';
+										i++;
 									} else {
 										buf[j++] = yytext[i];
 									}
