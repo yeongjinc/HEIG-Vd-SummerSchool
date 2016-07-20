@@ -42,6 +42,7 @@ extern char *yytext;
   Funclist *ftemp = NULL;
   char *fn_pfx   = NULL;
   EType rettype  = tVoid;
+  IDlist *global = NULL;
 }
 
 %start program
@@ -77,6 +78,15 @@ program     :                                 { stack = init_stack(NULL); symtab
               decll                           { cb = init_codeblock("");
                                                 stack = init_stack(stack); symtab = init_symtab(stack, symtab);
                                                 rettype = tVoid;
+												if(global != NULL) {
+													IDlist *l = global;
+													while(l) {
+														Symbol* symbol = find_symbol(symtab, l->id, sGlobal);
+														add_op(cb, opPush, 0);
+														add_op(cb, opStore, symbol);
+														l = l->next;
+													}
+												}
                                               }
               stmtblock                       { add_op(cb, opHalt, NULL);
                                                 dump_codeblock(cb); save_codeblock(cb, fn_pfx);
@@ -86,7 +96,11 @@ program     :                                 { stack = init_stack(NULL); symtab
             ;
 
 decll       : %empty
-            | decll vardecl ';'               { delete_idlist($vardecl); }
+            | decll vardecl ';'               {
+												/* for linux env */
+											 	global = $vardecl;
+												/* delete_idlist($vardecl);*/
+											  }
 			| decll funcl 					  { /* do nothing */  }
             ;
 

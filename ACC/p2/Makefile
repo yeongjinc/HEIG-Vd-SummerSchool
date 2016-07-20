@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-g -O0 -Wno-implicit-function-declaration -Wno-switch
+CFLAGS=-g -O0 -std=c99 -Wno-implicit-function-declaration -Wno-switch
 
 SRCS=supllib.c suvm.c
 
