@@ -1,12 +1,17 @@
 int a,b,c;
-void d,e,f;
 int aaaaaaaaaaaaaaaaaa,b____777;
 
 {
   print "aaa\n";
   write 2*(2+3);
-  if(1 == 1) {
+  if(1 == 2) {
   	print "bbb\n";
+  } else {
+  	print "ccc\n";
+  }
+
+  if(10 < 2) {
+  	print "kkk\n";
   }
   a = 2;
   write a;

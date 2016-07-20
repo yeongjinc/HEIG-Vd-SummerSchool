@@ -1,4 +1,5 @@
 {
+  int a;
   a = 0;
 
   while (a < 100) {
@@ -7,5 +8,5 @@
   }
 
 
-  write d;
+  write a;
 }

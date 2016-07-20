@@ -61,14 +61,13 @@ extern char *yytext;
 %left '+' '-'
 %left '*' '/'
 %right '='
-//TODO conditional operator
 
 %type<n>    NUMBER number
 %type<str>  ident IDENT string STRING call
 %type<idl>  identl vardecl
 %type<t>    type
 %type<op> 	condition
-%type<bpr> 	IF WHILE
+%type<bp> 	IF WHILE
 
 %%
 
@@ -90,6 +89,13 @@ decll       : %empty
             ;
 
 vardecl     : type identl                     {
+												if($type == tVoid) {
+												  char *error = NULL;
+												  asprintf(&error, "Void variable.");
+												  yyerror(error);
+												  free(error);
+												  YYABORT;
+												}
                                                 IDlist *l = $identl;
                                                 while (l) {
                                                   if (insert_symbol(symtab, l->id, $type) == NULL) {
@@ -126,7 +132,9 @@ stmtl 		: %empty
 			;
 
 stmtblock   :
-              '{' stmtl '}'
+              '{' 							  { symtab = init_symtab(stack, symtab); }
+			  stmtl 						  { symtab = symtab->parent; }
+			  '}'
             ;
 
 stmt 		: vardecl ';' 					  { delete_idlist($vardecl); }
@@ -153,11 +161,45 @@ assign 		: ident '=' expression ';' 		{
 		 									}
 		 	;
 
-if 			: IF '(' condition ')' stmtblock 		{ printf("IF\n"); }
-	  		| IF '(' condition ')' stmtblock ELSE stmtblock
+if 			:  IF '(' condition ')' 		{
+	  											$IF = (BPrecord *)calloc(1, sizeof(BPrecord));
+												Operation *tb = add_op(cb, $condition, NULL);
+												Operation *fb = add_op(cb, opJump, NULL);
+												$IF->ttrue = add_backpatch($IF->ttrue, tb);
+												$IF->tfalse = add_backpatch($IF->tfalse, fb);
+												pending_backpatch(cb, $IF->ttrue);
+	  										}
+	  		stmtblock 						{
+												Operation *next = add_op(cb, opJump, NULL);
+												$IF->end = add_backpatch($IF->end, next);
+												pending_backpatch(cb, $IF->tfalse);
+											}
+			else 							{
+												pending_backpatch(cb, $IF->end);
+											}
 			;
 
-while 		: WHILE '(' condition ')' stmtblock
+else 		: %empty
+	   		| ELSE 							{ /* do nothing */ }
+			stmtblock 						{ /* do nothing */ }
+			;
+
+while 		: WHILE   						{
+												$WHILE = (BPrecord *)calloc(1, sizeof(BPrecord));
+												$WHILE->pos = cb->nops;
+											}
+			'(' condition ')'				{
+												Operation *tb = add_op(cb, $condition, NULL);
+												Operation *fb = add_op(cb, opJump, NULL);
+												$WHILE->ttrue = add_backpatch($WHILE->ttrue, tb);
+												$WHILE->tfalse = add_backpatch($WHILE->tfalse, fb);
+												pending_backpatch(cb, $WHILE->ttrue);
+											}
+			stmtblock 						{
+												Operation *ret = get_op(cb, $WHILE->pos);
+												add_op(cb, opJump, ret);
+												pending_backpatch(cb, $WHILE->tfalse);
+											}
 			;
 
 call 		: ident '(' ')'
@@ -207,11 +249,9 @@ expression 	: number 						{ add_op(cb, opPush, $number); }
 			| '(' expression ')' 			{ /* do nothing */ }
 			| call
 
-condition 	: expression '=' '=' expression { printf("Condition ==\n"); }
-		   	| expression '<' '=' expression
-			| expression '<' expression
-			| expression '>' '=' expression //TODO
-			| expression '>' expression //TODO
+condition 	: expression '=' '=' expression { $$ = opJeq; }
+		   	| expression '<' '=' expression { $$ = opJle; }
+			| expression '<' expression 	{ $$ = opJlt; }
 			;
 
 number 		: NUMBER 						{ /* do nothing */ }
