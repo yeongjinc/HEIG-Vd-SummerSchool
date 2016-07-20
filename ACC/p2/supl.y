@@ -29,6 +29,9 @@ extern char *yytext;
   char     *str;
   IDlist   *idl;
   EType    t;
+  Funclist *fl;
+  BPrecord *bp;
+  EOpcode  op;
 }
 
 %code {
@@ -61,9 +64,11 @@ extern char *yytext;
 //TODO conditional operator
 
 %type<n>    NUMBER number
-%type<str>  ident IDENT string STRING
+%type<str>  ident IDENT string STRING call
 %type<idl>  identl vardecl
 %type<t>    type
+%type<op> 	condition
+%type<bpr> 	IF WHILE
 
 %%
 
@@ -124,8 +129,8 @@ stmtblock   :
               '{' stmtl '}'
             ;
 
-stmt 		: vardecl ';'
-	   		| assign 						  {  }
+stmt 		: vardecl ';' 					  { delete_idlist($vardecl); }
+	   		| assign 						  { /* do nothing */ }
 			| if
 			| while
 			| call ';'
@@ -135,7 +140,17 @@ stmt 		: vardecl ';'
 			| print
 			;
 
-assign 		: ident '=' expression ';'
+assign 		: ident '=' expression ';' 		{
+												Symbol* symbol = find_symbol(symtab, $ident, sGlobal);
+											  	if(symbol == NULL) {
+												  char *error = NULL;
+                                                  asprintf(&error, "Undeclared identifier '%s'.", $ident);
+                                                  yyerror(error);
+                                                  free(error);
+                                                  YYABORT;
+											    }
+												add_op(cb, opStore, symbol);
+		 									}
 		 	;
 
 if 			: IF '(' condition ')' stmtblock 		{ printf("IF\n"); }
@@ -153,7 +168,17 @@ return 		: RETURN ';'
 		 	| RETURN expression ';'
 			;
 
-read 		: READ ident ';'
+read 		: READ ident ';' 				{
+	   											Symbol* symbol = find_symbol(symtab, $ident, sGlobal);
+											  	if(symbol == NULL) {
+												  char *error = NULL;
+                                                  asprintf(&error, "Undeclared identifier '%s'.", $ident);
+                                                  yyerror(error);
+                                                  free(error);
+                                                  YYABORT;
+											    }
+												add_op(cb, opRead, symbol);
+	   										}
 	   		;
 
 write 		: WRITE expression ';' 			{ add_op(cb, opWrite, NULL); }
@@ -163,7 +188,16 @@ print 		: PRINT string ';' 				{ add_op(cb, opPrint, (void *)$string); }
 			;
 
 expression 	: number 						{ add_op(cb, opPush, $number); }
-			| ident
+			| ident 						{ Symbol* symbol = find_symbol(symtab, $ident, sGlobal);
+											  if(symbol == NULL) {
+												char *error = NULL;
+                                                asprintf(&error, "Undeclared identifier '%s'.", $ident);
+                                                yyerror(error);
+                                                free(error);
+                                                YYABORT;
+											  }
+											  add_op(cb, opLoad, symbol);
+											}
 			| expression '+' expression 	{ add_op(cb, opAdd, NULL); }
 			| expression '-' expression 	{ add_op(cb, opSub, NULL); }
 			| expression '*' expression 	{ add_op(cb, opMul, NULL); }
@@ -180,13 +214,13 @@ condition 	: expression '=' '=' expression { printf("Condition ==\n"); }
 			| expression '>' expression //TODO
 			;
 
-number 		: NUMBER 						{ }
+number 		: NUMBER 						{ /* do nothing */ }
 		 	;
 
-ident       : IDENT 						{ }
+ident       : IDENT 						{ /* do nothing */ }
             ;
 
-string 		: STRING 						{ }
+string 		: STRING 						{ /* do nothing */ }
 		 	;
 
 %%
