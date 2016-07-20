@@ -87,7 +87,7 @@ program     :                                 { stack = init_stack(NULL); symtab
 
 decll       : %empty
             | decll vardecl ';'               { delete_idlist($vardecl); }
-			| funcl 						  { /* do nothing */  }
+			| decll funcl 					  { /* do nothing */  }
             ;
 
 vardecl     : type identl                     {
@@ -155,8 +155,9 @@ fun 		:
 											  }
 			stmtblock
 											  {
-											  	if(ftemp->rettype == tVoid)
-													add_op(cb, opReturn, NULL);
+											  	if(ftemp->rettype == tInteger)
+													add_op(cb, opPush, 0);
+												add_op(cb, opReturn, NULL);
 											  	dump_codeblock(cb);
 												save_codeblock(cb, fn_pfx);
 												stack = stack->uplink;
@@ -168,7 +169,12 @@ fun 		:
 params 		: %empty  						  { $$ = 0; }
 		 	| vardecl 						  { int cnt = 0;
 												IDlist *l = $vardecl;
-												while(l) { cnt++; l = l->next; }
+												while(l) {
+													Symbol* symbol = find_symbol(symtab, l->id, sLocal);
+													add_op(cb, opStore, symbol);
+													cnt++;
+													l = l->next;
+												}
 										      	$$ = cnt;
 											  }
 			;
@@ -261,11 +267,14 @@ call 		:
 	   		ident '(' exprl ')' 			{
 												Funclist* f = find_func(fnl, $ident);
 												if(f == NULL) {
-												  char *error = NULL;
-                                                  asprintf(&error, "Undeclared function '%s'.", $ident);
-                                                  yyerror(error);
-                                                  free(error);
-                                                  YYABORT;
+												  if(ftemp == NULL || ftemp->id == NULL || strcmp($ident, ftemp->id) != 0) {
+												  	char *error = NULL;
+                                                  	asprintf(&error, "Undeclared function '%s'.", $ident);
+                                                  	yyerror(error);
+                                                  	free(error);
+                                                  	YYABORT;
+												  }
+												  f = ftemp;
 												}
 												if(f->narg != $exprl) {
 												  char *error = NULL;
@@ -277,9 +286,21 @@ call 		:
 												add_op(cb, opCall, $ident);
 											}
 			;
-												/* TODO Check # */
-return 		: RETURN ';' 					{ add_op(cb, opReturn, NULL); }
-		 	| RETURN expression ';' 		{ add_op(cb, opReturn, NULL); }
+
+return 		: RETURN ';' 					{
+		 										if(ftemp->rettype == tInteger) {
+													yyerror("Return value expected.");
+													YYABORT;
+												}
+												add_op(cb, opReturn, NULL);
+											}
+		 	| RETURN expression ';' 		{
+												if(ftemp->rettype == tVoid) {
+													yyerror("Unexpected return value exists.");
+													YYABORT;
+												}
+												add_op(cb, opReturn, NULL);
+											}
 			;
 
 read 		: READ ident ';' 				{

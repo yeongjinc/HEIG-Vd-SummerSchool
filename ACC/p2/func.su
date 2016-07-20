@@ -47,11 +47,9 @@ void p(int a,b)
   print "i = (noreturn) "; write i;
 
   p(i, n);
-  p(i, n, 1);
-  p(i);
+  p(i, 1);
 
   noreturn();
 
   i = i + noreturn();
-  i = i + p();
 }

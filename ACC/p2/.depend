@@ -1,1 +1,1 @@
-supl.tab.o: supl.tab.c supllib.h
+suvm.o: suvm.c supllib.h

@@ -1,6 +1,6 @@
-void foo() {
+int foo() {
 	print "func!\n";
-	print "dd\n";
+	return 1234;
 }
 
 void bar() {
@@ -10,10 +10,13 @@ void bar() {
 
 void bar2(int a,b,c) {
 	print "dd\n";
+	write a;
+	write b;
+	write c;
 }
 
 {
-	foo();
+	write foo() + 44;
 	bar();
-	bar2(1,2,3);
+	bar2(300,200,100);
 }
