@@ -6,7 +6,9 @@
 import csv
 import random
 import sys
+import re
 from collections import Counter
+from collections import OrderedDict
 from sklearn import naive_bayes
 from sklearn.ensemble.forest import RandomForestRegressor, ExtraTreesRegressor
 from sklearn.ensemble.gradient_boosting import GradientBoostingRegressor
@@ -18,9 +20,30 @@ from sklearn.neighbors.regression import KNeighborsRegressor
 from sklearn import cross_validation
 from sklearn import datasets
 from sklearn.cross_validation import StratifiedKFold
+from xgboost import XGBRegressor
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
+
+#one hot encoding
+def oneHot(header, prefix, ds, odic, col):
+    n = len(odic) + 1
+    ret = [prefix + str(i) for i in range(0,n)]
+    header.extend(ret)
+
+    for index,row in enumerate(ds):
+        l = [0 for i in range(0, n)]
+        kl = str(row[col])
+        kl = kl.strip()
+        for k in re.split(',', kl):
+            try:
+                l[odic.keys().index(k)] = 1
+            except:
+                pass
+        ds[index].extend(l)
+
+    return ret
+
 
 #Set the seed
 random.seed(42)
@@ -33,20 +56,26 @@ file_open=open(filepath_train,"r")
 csv_reader=csv.reader(file_open,delimiter=";")
 # Read the first line which is the header
 header=csv_reader.next()
-header.extend(["car" + str(i) for i in range(0,7)])
 # Load the dataset contained in the file
-dataset=[]
-#c = Counter()
+_dataset=[]
+_ins=[]
 for row in csv_reader:
-    dataset.append(row)
-#    c.update([row[3]])
-#print c
+    _dataset.append(row)
+    _ins.append(float(row[len(row)-1]))
 
+_ins.sort()
+outlierPercentage = 0.0
+outlierIndexL = int(len(_ins) * outlierPercentage)
+outlierIndexH = len(_ins) - outlierIndexL - 1
 
-
+dataset=[]
+for row in _dataset:
+    ins = float(row[len(row)-1])
+    if ins >= _ins[outlierIndexL] and ins <= _ins[outlierIndexH]:
+        dataset.append(row)
 
 # Using average for missing value, but didn't work better
-'''
+"""
 def isNumber(s):
     try:
         float(s)
@@ -68,32 +97,62 @@ for i, s in enumerate(S):
         avg.append(-1)
     else:
         avg.append(s / cnt[i])
-'''
+"""
 
 # Replace the missing values
-# Insert one-hot values
+# Count string values for one hot
+brandCol = 3
+brandPrefix = 'brand'
+brandCounter = Counter()
+energyCol = 7
+energyPrefix = 'energy'
+energyCounter = Counter()
+var6Col = 16
+var6Prefix = 'cval6'
+var6Counter = Counter()
+var8Col = 18
+var8Prefix = 'cval8'
+var8Counter = Counter()
+var14Col = 24
+var14Prefix = 'cval14'
+var14Counter = Counter()
+profCol = 10
+profPrefix = 'prof'
+profCounter = Counter()
+
 for index,row in enumerate(dataset):
     dataset[index]=[value if value not in ["NR",""] else -1 for col, value in enumerate(row)]
-    if row[3] == 'RENAULT':
-        dataset[index].extend([1,0,0,0,0,0,0])
-    elif row[3] == 'PEUGEOT':
-        dataset[index].extend([0,1,0,0,0,0,0])
-    elif row[3] == 'CITROEN':
-        dataset[index].extend([0,0,1,0,0,0,0])
-    elif row[3] == 'VOLKSWAGEN':
-        dataset[index].extend([0,0,0,1,0,0,0])
-    elif row[3] == 'MERCEDES':
-        dataset[index].extend([0,0,0,0,1,0,0])
-    elif row[3] == 'BMW':
-        dataset[index].extend([0,0,0,0,0,1,0])
-    else:
-        dataset[index].extend([0,0,0,0,0,0,1])
+    brandCounter.update([row[brandCol]])
+    energyCounter.update([row[energyCol]])
+    var6Counter.update([row[var6Col]]);
+    var8Counter.update([row[var8Col]]);
+    var14Counter.update([row[var14Col]]);
+    profCounter.update(re.split(',', row[profCol]))
 
+brandODic = OrderedDict(brandCounter)
+energyODic = OrderedDict(energyCounter)
+var6ODic = OrderedDict(var6Counter)
+var8ODic = OrderedDict(var8Counter)
+var14ODic = OrderedDict(var14Counter)
+profODic = OrderedDict(profCounter)
+
+brandRes = oneHot(header, brandPrefix, dataset, brandODic, brandCol)
+energyRes = oneHot(header, energyPrefix, dataset, energyODic, energyCol)
+var6Res = oneHot(header, var6Prefix, dataset, var6ODic, var6Col)
+var8Res = oneHot(header, var8Prefix, dataset, var8ODic, var8Col)
+var14Res = oneHot(header, var14Prefix, dataset, var14ODic, var14Col)
+profRes = oneHot(header, profPrefix, dataset, profODic, profCol)
 # In[39]:
 
+
 # Filter the dataset based on the column name
-feature_to_filter=["crm","annee_naissance","kmage_annuel", "annee_permis", "puis_fiscale", "anc_veh", "var1", "var2", "var4", "var5", "var7", "var9", "var10", "var11", "var12", "var13", "var15", "var16", "var17", "var18", "var19", "var20", "var21", "var22"]
-feature_to_filter.extend(["car" + str(i) for i in range(0,7)])
+feature_to_filter=["crm","annee_naissance","kmage_annuel", "puis_fiscale", "anc_veh", "var1", "var2", "var4", "var5", "var7", "var9", "var10", "var12", "var13", "var15", "var16", "var17", "var18", "var19", "var20", "var21", "var22"]
+feature_to_filter.extend(brandRes)
+feature_to_filter.extend(energyRes)
+feature_to_filter.extend(var6Res)
+feature_to_filter.extend(var8Res)
+feature_to_filter.extend(var14Res)
+feature_to_filter.extend(profRes)
 
 indexes_to_filter=[]
 for feature in feature_to_filter:
@@ -117,7 +176,7 @@ train_target=[]
 test_target=[]
 
 for row,target in zip(dataset_filtered,targets):
-    if random.random() < 0.50:
+    if random.random() < 0.70:
         train_dataset.append(row)
         train_target.append(target)
     else:
@@ -130,7 +189,11 @@ for row,target in zip(dataset_filtered,targets):
 #Build the model
 #model=ExtraTreesRegressor()
 #model=RandomForestRegressor()
-model=GradientBoostingRegressor()
+#params = {'n_estimators': 500, 'max_depth': 4, 'min_samples_split': 2,
+#                  'learning_rate': 0.01, 'loss': 'ls'}
+params = {'n_estimators': 400, 'max_depth': 7}
+#model=GradientBoostingRegressor(**params)
+model=XGBRegressor(**params)
 #model=GaussianNB()
 #model=Ridge()
 #model=KNeighborsRegressor()
@@ -182,21 +245,13 @@ for row in csvr:
 
 for i,row in enumerate(data_test):
     data_test[i] = [value if value not in ["NR", ""] else -1 for value in row]
-    if row[3] == 'RENAULT':
-        data_test[i].extend([1,0,0,0,0,0,0])
-    elif row[3] == 'PEUGEOT':
-        data_test[i].extend([0,1,0,0,0,0,0])
-    elif row[3] == 'CITROEN':
-        data_test[i].extend([0,0,1,0,0,0,0])
-    elif row[3] == 'VOLKSWAGEN':
-        data_test[i].extend([0,0,0,1,0,0,0])
-    elif row[3] == 'MERCEDES':
-        data_test[i].extend([0,0,0,0,1,0,0])
-    elif row[3] == 'BMW':
-        data_test[i].extend([0,0,0,0,0,1,0])
-    else:
-        data_test[i].extend([0,0,0,0,0,0,1])
 
+oneHot(header, brandPrefix, data_test, brandODic, brandCol)
+oneHot(header, energyPrefix, data_test, energyODic, energyCol)
+oneHot(header, var6Prefix, data_test, var6ODic, var6Col)
+oneHot(header, var8Prefix, data_test, var8ODic, var8Col)
+oneHot(header, var14Prefix, data_test, var14ODic, var14Col)
+oneHot(header, profPrefix, data_test, profODic, profCol)
 
 data_filtered = []
 for row in data_test:
