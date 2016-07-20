@@ -1,0 +1,19 @@
+void foo() {
+	print "func!\n";
+	print "dd\n";
+}
+
+void bar() {
+	foo();
+	print "bar\n";
+}
+
+void bar2(int a,b,c) {
+	print "dd\n";
+}
+
+{
+	foo();
+	bar();
+	bar2(1,2,3);
+}

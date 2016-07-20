@@ -38,7 +38,8 @@ extern char *yytext;
   Stack   *stack = NULL;
   Symtab *symtab = NULL;
   CodeBlock *cb  = NULL;
-
+  Funclist *fnl  = NULL;
+  Funclist *ftemp = NULL;
   char *fn_pfx   = NULL;
   EType rettype  = tVoid;
 }
@@ -62,16 +63,17 @@ extern char *yytext;
 %left '*' '/'
 %right '='
 
-%type<n>    NUMBER number
+%type<n>    NUMBER number params exprl
 %type<str>  ident IDENT string STRING call
 %type<idl>  identl vardecl
 %type<t>    type
 %type<op> 	condition
 %type<bp> 	IF WHILE
+%type<fl> 	fun funcl
 
 %%
 
-program     :                                 { stack = init_stack(NULL); symtab = init_symtab(stack, NULL); }
+program     :                                 { stack = init_stack(NULL); symtab = init_symtab(stack, NULL); fnl = NULL; }
               decll                           { cb = init_codeblock("");
                                                 stack = init_stack(stack); symtab = init_symtab(stack, symtab);
                                                 rettype = tVoid;
@@ -85,7 +87,7 @@ program     :                                 { stack = init_stack(NULL); symtab
 
 decll       : %empty
             | decll vardecl ';'               { delete_idlist($vardecl); }
-			| decll fundecl
+			| funcl 						  { /* do nothing */  }
             ;
 
 vardecl     : type identl                     {
@@ -115,20 +117,68 @@ type        : INTEGER                         { $$ = tInteger; }
             | VOID                            { $$ = tVoid; }
             ;
 
-fundecl 	: type ident '(' ')' stmtblock
-		 	| type ident '(' vardecl ')' stmtblock
+funcl 		: fun 							  { $$ = (Funclist*)calloc(1, sizeof(Funclist));
+												$$->id = strdup($fun->id);
+												$$->rettype = $fun->rettype;
+												$$->narg = $fun->narg;
+												fnl = $$;
+											  }
+			| funcl fun 					  {
+												$$ = (Funclist*)calloc(1, sizeof(Funclist));
+												$$->id = strdup($fun->id);
+												$$->rettype = $fun->rettype;
+												$$->narg = $fun->narg;
+												$$->next = $1;
+												fnl = $$;
+											  }
+			;
+
+fun 		:
+	   		type ident 						  {
+												if(find_func(fnl, $ident) != NULL) {
+													char *error = NULL;
+                                                    asprintf(&error, "Duplicated function name '%s'.", $ident);
+                                                    yyerror(error);
+                                                    free(error);
+                                                    YYABORT;
+												}
+												ftemp = (Funclist*)calloc(1, sizeof(Funclist));
+												ftemp->id = $ident;
+												ftemp->rettype = $type;
+
+												cb = init_codeblock($ident);
+												stack = init_stack(stack);
+												symtab = init_symtab(stack, symtab);
+											  }
+			'(' params ')' 					  {
+												ftemp->narg = $params;
+											  }
+			stmtblock
+											  {
+											  	if(ftemp->rettype == tVoid)
+													add_op(cb, opReturn, NULL);
+											  	dump_codeblock(cb);
+												save_codeblock(cb, fn_pfx);
+												stack = stack->uplink;
+												symtab = symtab->parent;
+												$$ = ftemp;
+											  }
+			;
+
+params 		: %empty  						  { $$ = 0; }
+		 	| vardecl 						  { int cnt = 0;
+												IDlist *l = $vardecl;
+												while(l) { cnt++; l = l->next; }
+										      	$$ = cnt;
+											  }
 			;
 
 identl      : ident                           { $$ = (IDlist*)calloc(1, sizeof(IDlist)); $$->id = $ident; }
             | identl ',' ident                { $$ = (IDlist*)calloc(1, sizeof(IDlist)); $$->id = $ident; $$->next = $1; }
             ;
 
-exprl 		: expression
-			| exprl ',' expression
-			;
-
-stmtl 		: %empty
-			| stmtl stmt
+stmtl 		: %empty 						  { /* do nothing */ }
+			| stmtl stmt 					  { /* do nothing */ }
 			;
 
 stmtblock   :
@@ -179,7 +229,7 @@ if 			:  IF '(' condition ')' 		{
 											}
 			;
 
-else 		: %empty
+else 		: %empty 						{ /* do nothing */ }
 	   		| ELSE 							{ /* do nothing */ }
 			stmtblock 						{ /* do nothing */ }
 			;
@@ -202,12 +252,34 @@ while 		: WHILE   						{
 											}
 			;
 
-call 		: ident '(' ')'
-	   		| ident '(' exprl ')'
+exprl 		: %empty 						{ $$ = 0; }
+			| expression 					{ $$ = 1; }
+			| exprl ',' expression 			{ $$ = $$ + 1; }
 			;
 
-return 		: RETURN ';'
-		 	| RETURN expression ';'
+call 		:
+	   		ident '(' exprl ')' 			{
+												Funclist* f = find_func(fnl, $ident);
+												if(f == NULL) {
+												  char *error = NULL;
+                                                  asprintf(&error, "Undeclared function '%s'.", $ident);
+                                                  yyerror(error);
+                                                  free(error);
+                                                  YYABORT;
+												}
+												if(f->narg != $exprl) {
+												  char *error = NULL;
+                                                  asprintf(&error, "Function '%s' : Expected number of parameters %d, actual %d", $ident, f->narg, (int)$exprl);
+                                                  yyerror(error);
+                                                  free(error);
+                                                  YYABORT;
+												}
+												add_op(cb, opCall, $ident);
+											}
+			;
+												/* TODO Check # */
+return 		: RETURN ';' 					{ add_op(cb, opReturn, NULL); }
+		 	| RETURN expression ';' 		{ add_op(cb, opReturn, NULL); }
 			;
 
 read 		: READ ident ';' 				{
@@ -248,6 +320,7 @@ expression 	: number 						{ add_op(cb, opPush, $number); }
 			| expression '^' expression 	{ add_op(cb, opPow, NULL); }
 			| '(' expression ')' 			{ /* do nothing */ }
 			| call
+			;
 
 condition 	: expression '=' '=' expression { $$ = opJeq; }
 		   	| expression '<' '=' expression { $$ = opJle; }
