@@ -1,0 +1,39 @@
+int turn;
+
+int calX(int x, y) {
+	return x+y*turn;
+}
+
+int calY(int x, y) {
+	return calX(x,y) + 3;
+}
+
+{
+	int gg;
+	gg = 0;
+	while(gg == 0) {
+		int x, y, a, b;
+		print "Your turn!\n";
+		print "X = ";
+		read x;
+		print "Y = ";
+		read y;
+
+		a = calX(x, y);
+		b = calY(x, y);
+
+		print "\nAlphaGo plays\n";
+		print "X = ";
+		write a;
+		print "Y = ";
+		write b;
+		print "\n";
+
+		turn = turn + 1;
+		if(2 < turn) {
+			gg = 1;
+		}
+	}
+
+	print "\nAlphaGo resigns...Congratulation!\n\n";
+}
